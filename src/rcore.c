@@ -483,6 +483,12 @@ typedef struct CoreData {
             Vector2 position[MAX_TOUCH_POINTS];         // Touch position on screen
             char currentTouchState[MAX_TOUCH_POINTS];   // Registers current touch state
             char previousTouchState[MAX_TOUCH_POINTS];  // Registers previous touch state
+
+            #if defined(PLATFORM_VITA)
+            Vector2 previousPosition[MAX_TOUCH_POINTS];
+            bool continuousTouch;
+            #endif
+
         } Touch;
         struct {
             int lastButtonPressed;          // Register last gamepad button pressed
@@ -742,10 +748,9 @@ void InitWindow(int width, int height, const char *title)
     CORE.Window.screen.height = height;
     CORE.Window.currentFbo.width = width;
     CORE.Window.currentFbo.height = height;
-    CORE.Input.Mouse.currentPosition.x = (float)CORE.Window.screen.width/2.0f;
-    CORE.Input.Mouse.currentPosition.y = (float)CORE.Window.screen.height/2.0f;
     CORE.Input.Mouse.scale = (Vector2){ 1.0f, 1.0f };
     CORE.Input.Gamepad.ready[0] = true;
+    CORE.Input.Touch.continuousTouch = false;
 
     if (!CORE.Window.ready) return;
 
@@ -3636,8 +3641,16 @@ Vector2 GetMouseDelta(void)
 {
     Vector2 delta = {0};
 
-    delta.x = CORE.Input.Mouse.currentPosition.x - CORE.Input.Mouse.previousPosition.x;
-    delta.y = CORE.Input.Mouse.currentPosition.y - CORE.Input.Mouse.previousPosition.y;
+    #if defined(PLATFORM_VITA)
+        if (CORE.Input.Touch.continuousTouch)
+        {
+            delta.x = CORE.Input.Touch.position[0].x - CORE.Input.Touch.previousPosition[0].x;
+            delta.y = CORE.Input.Touch.position[0].y - CORE.Input.Touch.previousPosition[0].y;
+        }
+    #else
+        delta.x = CORE.Input.Mouse.currentPosition.x - CORE.Input.Mouse.previousPosition.x;
+        delta.y = CORE.Input.Mouse.currentPosition.y - CORE.Input.Mouse.previousPosition.y;
+    #endif
 
     return delta;
 }
@@ -5247,14 +5260,31 @@ void PollInputEvents(void)
     // Index 6 ~ 9: Rear touch
     SceTouchData touch_data;
 
-    for (SceTouchPortType port = 0; port < SCE_TOUCH_PORT_MAX_NUM; port++) {
+    for (SceTouchPortType port = 0; port < SCE_TOUCH_PORT_MAX_NUM; port++)
+    {
         sceTouchPeek(port, &touch_data, 1);
 
-        for (int point = 0; point < touch_data.reportNum; point++) {
-            CORE.Input.Touch.position[point + 6 * port].x = touch_data.report[point].x;
-            CORE.Input.Touch.position[point + 6 * port].y = touch_data.report[point].y;
+        for (int point = 0; point < (port == SCE_TOUCH_PORT_FRONT ? 6 : 4); point++)
+        {
+            CORE.Input.Touch.previousPosition[point + 6 * port] = CORE.Input.Touch.position[point + 6 * port];
+            
+            // Touch reported for this point
+            if (point < touch_data.reportNum)
+            {
+                CORE.Input.Touch.position[point + 6 * port].x = touch_data.report[point].x;
+                CORE.Input.Touch.position[point + 6 * port].y = touch_data.report[point].y;
+            }
+            // No touch reported
+            else
+            {
+                CORE.Input.Touch.position[point + 6 * port].x = -1.0f;
+                CORE.Input.Touch.position[point + 6 * port].y = -1.0f;
+            }
+
         }
     }
+
+    CORE.Input.Touch.continuousTouch = CORE.Input.Touch.previousPosition[0].x >= 0.0f && CORE.Input.Touch.position[0].x >= 0.0f;
 
 #endif
 
