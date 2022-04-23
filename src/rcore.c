@@ -277,6 +277,8 @@
     #include "EGL/eglext.h"
     #include "GLES2/gl2.h"
 
+    #define NORMALISE_VITA_AXIS(value) (((float)value - 127.5f) / 127.5f)
+
     static const SceCtrlButtons vita_buttons[MAX_GAMEPAD_BUTTONS] =  {
         SCE_CTRL_SELECT,
         SCE_CTRL_L3,
@@ -486,7 +488,7 @@ typedef struct CoreData {
 
             #if defined(PLATFORM_VITA)
             Vector2 previousPosition[MAX_TOUCH_POINTS];
-            bool continuousTouch;
+            int continuousTouchIndex;
             #endif
 
         } Touch;
@@ -750,7 +752,7 @@ void InitWindow(int width, int height, const char *title)
     CORE.Window.currentFbo.height = height;
     CORE.Input.Mouse.scale = (Vector2){ 1.0f, 1.0f };
     CORE.Input.Gamepad.ready[0] = true;
-    CORE.Input.Touch.continuousTouch = false;
+    CORE.Input.Touch.continuousTouchIndex = -1;
 
     if (!CORE.Window.ready) return;
 
@@ -3642,10 +3644,10 @@ Vector2 GetMouseDelta(void)
     Vector2 delta = {0};
 
     #if defined(PLATFORM_VITA)
-        if (CORE.Input.Touch.continuousTouch)
+        if (CORE.Input.Touch.continuousTouchIndex >= 0)
         {
-            delta.x = CORE.Input.Touch.position[0].x - CORE.Input.Touch.previousPosition[0].x;
-            delta.y = CORE.Input.Touch.position[0].y - CORE.Input.Touch.previousPosition[0].y;
+            delta.x = CORE.Input.Touch.position[CORE.Input.Touch.continuousTouchIndex].x - CORE.Input.Touch.previousPosition[CORE.Input.Touch.continuousTouchIndex].x;
+            delta.y = CORE.Input.Touch.position[CORE.Input.Touch.continuousTouchIndex].y - CORE.Input.Touch.previousPosition[CORE.Input.Touch.continuousTouchIndex].y;
         }
     #else
         delta.x = CORE.Input.Mouse.currentPosition.x - CORE.Input.Mouse.previousPosition.x;
@@ -5214,11 +5216,11 @@ void PollInputEvents(void)
 
 #if defined(PLATFORM_VITA)
 
-    // Poll Vita gamepad buttons
+    // Poll Vita gamepad data
     for (int port = 0; port < MAX_GAMEPADS; port++)
     {
         SceCtrlData button_data;
-        sceCtrlPeekBufferPositiveExt2(port, &button_data, 1);
+        sceCtrlPeekBufferPositive(port, &button_data, 1);
     
         for (int i = 0; i < MAX_GAMEPAD_BUTTONS; i++)
         {
@@ -5243,7 +5245,7 @@ void PollInputEvents(void)
                 case SCE_CTRL_CIRCLE: button = GAMEPAD_BUTTON_RIGHT_FACE_RIGHT; break;
                 case SCE_CTRL_CROSS: button = GAMEPAD_BUTTON_RIGHT_FACE_DOWN; break;
                 case SCE_CTRL_SQUARE: button = GAMEPAD_BUTTON_RIGHT_FACE_LEFT; break;
-                default: break;
+                default: return;
             }
 
             if ((button_data.buttons & vita_button) == vita_button)
@@ -5253,12 +5255,25 @@ void PollInputEvents(void)
             }
             else CORE.Input.Gamepad.currentButtonState[port][button] = 0;
         }
+
+        for (GamepadAxis axis = 0; axis < MAX_GAMEPAD_AXIS; axis++)
+        {
+            switch (axis)
+            {
+                case GAMEPAD_AXIS_LEFT_X: CORE.Input.Gamepad.axisState[port][axis] = NORMALISE_VITA_AXIS(button_data.lx); break;
+                case GAMEPAD_AXIS_LEFT_Y: CORE.Input.Gamepad.axisState[port][axis] = NORMALISE_VITA_AXIS(button_data.ly); break;
+                case GAMEPAD_AXIS_RIGHT_X: CORE.Input.Gamepad.axisState[port][axis] = NORMALISE_VITA_AXIS(button_data.rx); break;
+                case GAMEPAD_AXIS_RIGHT_Y: CORE.Input.Gamepad.axisState[port][axis] = NORMALISE_VITA_AXIS(button_data.ly); break;
+                default: break;
+            }
+        }
     }
 
     // Poll Vita touch points
     // Index 0 ~ 5: Front touch
     // Index 6 ~ 9: Rear touch
     SceTouchData touch_data;
+    int new_continuous_touch_index = -1;
 
     for (SceTouchPortType port = 0; port < SCE_TOUCH_PORT_MAX_NUM; port++)
     {
@@ -5273,6 +5288,8 @@ void PollInputEvents(void)
             {
                 CORE.Input.Touch.position[point + 6 * port].x = touch_data.report[point].x;
                 CORE.Input.Touch.position[point + 6 * port].y = touch_data.report[point].y;
+
+                if (new_continuous_touch_index == -1 && CORE.Input.Touch.previousPosition[point + 6 * port].x >= 0.0f) new_continuous_touch_index = point + 6 * port;
             }
             // No touch reported
             else
@@ -5284,7 +5301,12 @@ void PollInputEvents(void)
         }
     }
 
-    CORE.Input.Touch.continuousTouch = CORE.Input.Touch.previousPosition[0].x >= 0.0f && CORE.Input.Touch.position[0].x >= 0.0f;
+    if ((CORE.Input.Touch.continuousTouchIndex == -1 || CORE.Input.Touch.position[CORE.Input.Touch.continuousTouchIndex].x == -1.0f) && new_continuous_touch_index != CORE.Input.Touch.continuousTouchIndex)
+    {
+        CORE.Input.Touch.previousPosition[CORE.Input.Touch.continuousTouchIndex].x = CORE.Input.Touch.position[new_continuous_touch_index].x;
+        CORE.Input.Touch.previousPosition[CORE.Input.Touch.continuousTouchIndex].y = CORE.Input.Touch.position[new_continuous_touch_index].y;
+        CORE.Input.Touch.continuousTouchIndex = new_continuous_touch_index;
+    }
 
 #endif
 

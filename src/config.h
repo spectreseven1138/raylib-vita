@@ -75,13 +75,14 @@
     #define MAX_GAMEPAD_BUTTONS           16        // Max bumber of buttons supported (per gamepad)
     #include <psp2/touch.h>
     #define MAX_TOUCH_POINTS              12        // Maximum number of touch points supported (6 on front, 4 on back)
+    #define MAX_GAMEPAD_AXIS               6        // Max number of axis supported (per gamepad)
 #else
     #define MAX_GAMEPADS                   4        // Max number of gamepads supported
     #define MAX_GAMEPAD_BUTTONS           32        // Max bumber of buttons supported (per gamepad)
     #define MAX_TOUCH_POINTS               8        // Maximum number of touch points supported
+    #define MAX_GAMEPAD_AXIS               8        // Max number of axis supported (per gamepad)
 #endif
 
-#define MAX_GAMEPAD_AXIS               8        // Max number of axis supported (per gamepad)
 #define MAX_KEY_PRESSED_QUEUE         16        // Max number of characters in the key input queue
 
 #define STORAGE_DATA_FILE  "storage.data"       // Automatic storage filename
