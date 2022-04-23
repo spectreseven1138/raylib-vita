@@ -5263,7 +5263,7 @@ void PollInputEvents(void)
                 case GAMEPAD_AXIS_LEFT_X: CORE.Input.Gamepad.axisState[port][axis] = NORMALISE_VITA_AXIS(button_data.lx); break;
                 case GAMEPAD_AXIS_LEFT_Y: CORE.Input.Gamepad.axisState[port][axis] = NORMALISE_VITA_AXIS(button_data.ly); break;
                 case GAMEPAD_AXIS_RIGHT_X: CORE.Input.Gamepad.axisState[port][axis] = NORMALISE_VITA_AXIS(button_data.rx); break;
-                case GAMEPAD_AXIS_RIGHT_Y: CORE.Input.Gamepad.axisState[port][axis] = NORMALISE_VITA_AXIS(button_data.ly); break;
+                case GAMEPAD_AXIS_RIGHT_Y: CORE.Input.Gamepad.axisState[port][axis] = NORMALISE_VITA_AXIS(button_data.ry); break;
                 default: break;
             }
         }
