@@ -11,6 +11,7 @@
 #    PLATFORM_RPI:      Raspberry Pi (Raspbian)
 #    PLATFORM_DRM:      Linux native mode, including Raspberry Pi 4 with V3D fkms driver
 #    PLATFORM_WEB:      HTML5 (Chrome, Firefox)
+#    PLATFORM_VITA:     PlayStation Vita
 #
 #  Many thanks to Milan Nikolic (@gen2brain) for implementing Android platform pipeline.
 #  Many thanks to Emanuele Petriglia for his contribution on GNU/Linux pipeline.
@@ -67,20 +68,21 @@ RAYLIB_RES_FILE      ?= ./raylib.dll.rc.data
 
 # Define raylib platform
 # Options:  PLATFORM_DESKTOP, PLATFORM_RPI, PLATFORM_ANDROID, PLATFORM_WEB
-PLATFORM             ?= PLATFORM_DESKTOP
+PLATFORM             ?= PLATFORM_VITA
 
 # Include raylib modules on compilation
 # NOTE: Some programs like tools could not require those modules
-RAYLIB_MODULE_AUDIO  ?= TRUE
+RAYLIB_MODULE_AUDIO  ?= FALSE
 RAYLIB_MODULE_MODELS ?= TRUE
 RAYLIB_MODULE_RAYGUI ?= FALSE
 RAYLIB_MODULE_PHYSAC ?= FALSE
+RAYLIB_MODULE_SPINE  ?= FALSE
 
 RAYLIB_MODULE_RAYGUI_PATH ?= $(RAYLIB_SRC_PATH)/extras
 RAYLIB_MODULE_PHYSAC_PATH ?= $(RAYLIB_SRC_PATH)/extras
 
 # Use external GLFW library instead of rglfw module
-USE_EXTERNAL_GLFW    ?= FALSE
+USE_EXTERNAL_GLFW    ?= TRUE
 
 # Use Wayland display server protocol on Linux desktop
 # by default it uses X11 windowing system
@@ -143,7 +145,9 @@ ifeq ($(PLATFORM),PLATFORM_DRM)
         PLATFORM_OS = LINUX
     endif
 endif
-
+ifeq ($(PLATFORM),PLATFORM_VITA)
+    PLATFORM_OS = VITA
+endif
 # RAYLIB_SRC_PATH adjustment for different platforms.
 # If using GNU make, we can get the full path to the top of the tree. Windows? BSD?
 # Required for ldconfig or other tools that do not perform path expansion.
@@ -222,7 +226,9 @@ ifeq ($(PLATFORM),PLATFORM_ANDROID)
     # By default use OpenGL ES 2.0 on Android
     GRAPHICS = GRAPHICS_API_OPENGL_ES2
 endif
-
+ifeq ($(PLATFORM),PLATFORM_VITA)
+    GRAPHICS = GRAPHICS_API_OPENGL_ES2
+endif
 # Define default C compiler and archiver to pack library
 CC = gcc
 AR = ar
@@ -262,7 +268,10 @@ ifeq ($(PLATFORM),PLATFORM_ANDROID)
     # It seems from Android NDK r22 onwards we need to use llvm-ar
     AR = $(ANDROID_TOOLCHAIN)/bin/llvm-ar
 endif
-
+ifeq ($(PLATFORM),PLATFORM_VITA)
+    CC = arm-vita-eabi-gcc
+    AR = arm-vita-eabi-ar
+endif
 # Define compiler flags:
 #  -O1                      defines optimization level
 #  -g                       include debug information on compilation
@@ -376,7 +385,10 @@ endif
 # Define include paths for required headers
 # NOTE: Several external required libraries (stb and others)
 INCLUDE_PATHS = -I. -Iexternal/glfw/include -Iexternal/glfw/deps/mingw
-
+ifeq ($(PLATFORM),PLATFORM_VITA)
+    CFLAGS = -Wl,-q -Wall -Wno-incompatible-pointer-types -Wno-pointer-sign -O3 -nostartfiles -DVITA
+    INCLUDE_PATHS = -I.
+endif
 ifeq ($(PLATFORM),PLATFORM_DESKTOP)
     ifeq ($(PLATFORM_OS),BSD)
         INCLUDE_PATHS += -I/usr/local/include
@@ -470,6 +482,10 @@ ifeq ($(PLATFORM),PLATFORM_ANDROID)
     OBJS += android_native_app_glue.o
 endif
 
+ifeq ($(RAYLIB_MODULE_SPINE),TRUE)
+    OBJS += rspine.o
+endif
+
 # Default target entry
 all: raylib
 
@@ -540,7 +556,7 @@ else
     else
         # Compile raylib static library version $(RAYLIB_VERSION)
         # WARNING: You should type "make clean" before doing this target.
-		$(AR) rcs $(RAYLIB_RELEASE_PATH)/lib$(RAYLIB_LIB_NAME).a $(OBJS)
+		$(AR) rc $(RAYLIB_RELEASE_PATH)/lib$(RAYLIB_LIB_NAME).a $(OBJS)
 		@echo "raylib static library generated (lib$(RAYLIB_LIB_NAME).a) in $(RAYLIB_RELEASE_PATH)!"
     endif
 endif
@@ -599,6 +615,9 @@ physac.c:
 android_native_app_glue.o : $(NATIVE_APP_GLUE)/android_native_app_glue.c
 	$(CC) -c $< $(CFLAGS) $(INCLUDE_PATHS)
 
+# Compile spine module
+rspine.o : rspine.c raylib.h rlgl.h raymath.h utils.h
+	$(CC) -c $< $(CFLAGS) $(INCLUDE_PATHS) -D$(PLATFORM) -D$(GRAPHICS)
 
 # Install generated and needed files to desired directories.
 # On GNU/Linux and BSDs, there are some standard directories that contain extra
@@ -613,10 +632,12 @@ android_native_app_glue.o : $(NATIVE_APP_GLUE)/android_native_app_glue.c
 # TODO: Add other platforms. Remove sudo requirement, i.e. add USER mode.
 
 # RAYLIB_INSTALL_PATH should be the desired full path to libraylib. No relative paths.
-DESTDIR ?= /usr/local
-RAYLIB_INSTALL_PATH ?= $(DESTDIR)/lib
+#DESTDIR ?=  $(VITASDK)/arm-vita-eabi
+PREFIX ?= $(VITASDK)/arm-vita-eabi
+
+RAYLIB_INSTALL_PATH ?= $(DESTDIR)$(PREFIX)/lib
 # RAYLIB_H_INSTALL_PATH locates the installed raylib header and associated source files.
-RAYLIB_H_INSTALL_PATH ?= $(DESTDIR)/include
+RAYLIB_H_INSTALL_PATH ?= $(DESTDIR)$(PREFIX)/include
 
 install :
 ifeq ($(ROOT),root)
@@ -648,7 +669,15 @@ ifeq ($(ROOT),root)
 		@echo "This function currently works on GNU/Linux systems. Add yours today (^;"
     endif
 else
-	@echo "Error: Root permissions needed for installation. Try sudo make install"
+	mkdir -p $(RAYLIB_INSTALL_PATH)
+	mkdir -p $(RAYLIB_H_INSTALL_PATH)
+	cp --update --verbose $(RAYLIB_RELEASE_PATH)/lib$(RAYLIB_LIB_NAME).a $(RAYLIB_INSTALL_PATH)/lib$(RAYLIB_LIB_NAME).a
+	cp --update raylib.h $(RAYLIB_H_INSTALL_PATH)/raylib.h
+	cp --update raymath.h $(RAYLIB_H_INSTALL_PATH)/raymath.h
+	cp --update rlgl.h $(RAYLIB_H_INSTALL_PATH)/rlgl.h
+	cp --update rayspine.h $(RAYLIB_H_INSTALL_PATH)/rayspine.h
+	cp --update extras/physac.h $(RAYLIB_H_INSTALL_PATH)/physac.h
+	@echo "raylib development files installed/updated!"
 endif
 
 # Remove raylib dev files installed on the system
@@ -676,7 +705,12 @@ ifeq ($(ROOT),root)
 		@echo "This function currently works on GNU/Linux systems. Add yours today (^;"
     endif
 else
-	@echo "Error: Root permissions needed for uninstallation. Try sudo make uninstall"
+	rm --force --interactive --verbose $(RAYLIB_H_INSTALL_PATH)/raylib.h
+	rm --force --interactive --verbose $(RAYLIB_H_INSTALL_PATH)/raymath.h
+	rm --force --interactive --verbose $(RAYLIB_H_INSTALL_PATH)/rlgl.h
+	rm --force --interactive --verbose $(RAYLIB_H_INSTALL_PATH)/physac.h
+	rm --force --interactive --verbose $(RAYLIB_H_INSTALL_PATH)/rayspine.h
+	@echo "raylib development files removed!"   
 endif
 
 # Clean everything

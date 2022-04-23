@@ -11,6 +11,7 @@
 *       - PLATFORM_RPI:     Raspberry Pi 0,1,2,3 (Raspbian, native mode)
 *       - PLATFORM_DRM:     Linux native mode, including Raspberry Pi 4 with V3D fkms driver
 *       - PLATFORM_WEB:     HTML5 with WebAssembly
+*       - PLATFORM_VITA:    PlayStation Vita
 *
 *   CONFIGURATION:
 *
@@ -265,6 +266,15 @@
     #include <emscripten/html5.h>       // Emscripten HTML5 library
 #endif
 
+#if defined(PLATFORM_VITA)
+    #include <pib.h>
+    #include <psp2/gxm.h>
+    #include <psp2/display.h>
+    #include <psp2/kernel/processmgr.h>
+    #include "EGL/egl.h"
+    #include "EGL/eglext.h"
+    #include "GLES2/gl2.h"
+#endif
 //----------------------------------------------------------------------------------
 // Defines and Macros
 //----------------------------------------------------------------------------------
@@ -354,7 +364,7 @@ typedef struct CoreData {
 #if defined(PLATFORM_RPI)
         EGL_DISPMANX_WINDOW_T handle;       // Native window handle (graphic device)
 #endif
-#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM)
+#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM) || defined(PLATFORM_VITA)
 #if defined(PLATFORM_DRM)
         int fd;                             // File descriptor for /dev/dri/...
         drmModeConnector *connector;        // Direct Rendering Manager (DRM) mode connector
@@ -472,7 +482,7 @@ typedef struct CoreData {
         double draw;                        // Time measure for frame draw
         double frame;                       // Time measure for one frame
         double target;                      // Desired time for one frame, if 0 not applied
-#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM)
+#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM) || defined(PLATFORM_VITA)
         unsigned long long base;            // Base time measure for hi-res timer
 #endif
         unsigned int frameCounter;          // Frame counter
@@ -692,6 +702,40 @@ struct android_app *GetAndroidApp(void)
 }
 #endif
 
+#if defined(PLATFORM_VITA)
+void InitWindow(int width, int height, const char *title)
+{
+    TRACELOG(LOG_INFO, "Initializing raylib %s", RAYLIB_VERSION);
+    if ((title != NULL) && (title[0] != 0)) CORE.Window.title = title;
+    // Init hi-res timer
+
+    InitTimer();
+    //TRACELOG(LOG_INFO, "after timer ");
+
+    // Init graphics device (display device and OpenGL context)
+    // NOTE: returns true if window and graphic device has been initialized successfully
+    CORE.Window.ready = InitGraphicsDevice(width, height);
+    CORE.Window.screen.width = width;
+    CORE.Window.screen.height = height;
+    CORE.Window.currentFbo.width = width;
+    CORE.Window.currentFbo.height = height;
+    CORE.Input.Mouse.currentPosition.x = (float)CORE.Window.screen.width/2.0f;
+    CORE.Input.Mouse.currentPosition.y = (float)CORE.Window.screen.height/2.0f;
+    CORE.Input.Mouse.scale = (Vector2){ 1.0f, 1.0f };
+    
+
+    if (!CORE.Window.ready) return;
+
+#if defined(SUPPORT_DEFAULT_FONT)
+    // Load default font
+    // NOTE: External functions (defined in module: text)
+    LoadFontDefault();
+    Rectangle rec = GetFontDefault().recs[95];
+    // NOTE: We setup a 1px padding on char rectangle to avoid pixel bleeding on MSAA filtering
+    SetShapesTexture(GetFontDefault().texture, (Rectangle){ rec.x + 1, rec.y + 1, rec.width - 2, rec.height - 2 });
+#endif
+}
+#else
 // Initialize window and OpenGL context
 // NOTE: data parameter could be used to pass any kind of required data to the initialization
 void InitWindow(int width, int height, const char *title)
@@ -854,7 +898,7 @@ void InitWindow(int width, int height, const char *title)
 
 #endif        // PLATFORM_DESKTOP || PLATFORM_WEB || PLATFORM_RPI || PLATFORM_DRM
 }
-
+#endif
 // Close window and unload OpenGL context
 void CloseWindow(void)
 {
@@ -882,7 +926,7 @@ void CloseWindow(void)
     timeEndPeriod(1);           // Restore time period
 #endif
 
-#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI)
+#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_VITA)
     // Close surface, context and display
     if (CORE.Window.device != EGL_NO_DISPLAY)
     {
@@ -1032,7 +1076,7 @@ bool WindowShouldClose(void)
     else return true;
 #endif
 
-#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM)
+#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM) || defined(PLATFORM_VITA)
     if (CORE.Window.ready) return CORE.Window.shouldClose;
     else return true;
 #endif
@@ -2643,6 +2687,9 @@ double GetTime(void)
 
     return (double)(time - CORE.Time.base)*1e-9;  // Elapsed time since InitTimer()
 #endif
+#if defined(PLATFORM_VITA)
+    return (double)(sceKernelGetProcessTimeWide() - CORE.Time.base)*1e-6;
+#endif
 }
 
 // Setup window configuration flags (view FLAGS)
@@ -2888,9 +2935,11 @@ const char *GetWorkingDirectory(void)
 {
     static char currentDir[MAX_FILEPATH_LENGTH] = { 0 };
     memset(currentDir, 0, MAX_FILEPATH_LENGTH);
-
+#if !defined(PLATFORM_VITA)
     char *path = GETCWD(currentDir, MAX_FILEPATH_LENGTH - 1);
-
+#else
+    char *path = ".";
+#endif
     return path;
 }
 
@@ -2948,8 +2997,11 @@ void ClearDirectoryFiles(void)
 // Change working directory, returns true on success
 bool ChangeDirectory(const char *dir)
 {
+#if !defined(PLATFORM_VITA)
     bool result = CHDIR(dir);
-
+#else
+    bool result = 0;
+#endif
     if (result != 0) TRACELOG(LOG_WARNING, "SYSTEM: Failed to change to directory: %s", dir);
 
     return (result == 0);
@@ -3698,6 +3750,171 @@ int GetTouchPointCount(void)
 // NOTE: width and height represent the screen (framebuffer) desired size, not actual display size
 // If width or height are 0, default display size will be used for framebuffer size
 // NOTE: returns false in case graphic device could not be created
+#if defined(PLATFORM_VITA)
+static bool InitGraphicsDevice(int width, int height)
+{
+    CORE.Window.screen.width = width;            // User desired width
+    CORE.Window.screen.height = height;          // User desired height
+    CORE.Window.display.width = width;            // User desired width
+    CORE.Window.display.height = height;          // User desired height
+    CORE.Window.currentFbo.width = width;
+    CORE.Window.currentFbo.height = height;
+    CORE.Window.render.width = width;
+    CORE.Window.render.height = height;
+
+    CORE.Window.position.x = CORE.Window.display.width/2 - CORE.Window.screen.width/2;
+    CORE.Window.position.y = CORE.Window.display.height/2 - CORE.Window.screen.height/2;
+
+    CORE.Window.screenScale = MatrixIdentity();  // No draw scaling required by default
+
+    SetupFramebuffer(CORE.Window.display.width,CORE.Window.display.height);
+    
+    CORE.Window.fullscreen = true;
+
+    EGLint samples = 0;
+    EGLint sampleBuffer = 0;
+    //TRACELOG(LOG_INFO, "after setugframebuffer");
+
+    if (CORE.Window.flags & FLAG_MSAA_4X_HINT)
+    {
+        samples = 4;
+        sampleBuffer = 1;
+        TRACELOG(LOG_INFO, "DISPLAY: Trying to enable MSAA x4");
+    }
+
+    const EGLint framebufferAttribs[] = {
+        //EGL_CONFIG_ID, 2,                         // You can always provide a configuration id. The one displayed here is Configuration 2
+        EGL_RED_SIZE, 8,                            // These four are always 8
+        EGL_GREEN_SIZE, 8,                          //
+        EGL_BLUE_SIZE, 8,                           //
+        EGL_ALPHA_SIZE, 8,                          //
+        EGL_DEPTH_SIZE, 32,                         // Depth is either 32 or 0
+        EGL_STENCIL_SIZE, 8,                        //  Stencil Size is either 8 or 0
+        EGL_SURFACE_TYPE, 5,                        // This is ALWAYS 5
+        EGL_RENDERABLE_TYPE, EGL_OPENGL_ES2_BIT,    // Always EGL_OPENGL_ES2_BIT or 0x4
+        EGL_NONE};
+    
+    const EGLint contextAttribs[] =
+    {
+        EGL_CONTEXT_CLIENT_VERSION, 2,
+        EGL_NONE
+    };
+
+   /* const EGLint surfaceAttributes[] =
+    {
+        EGL_RENDER_BUFFER, EGL_BACK_BUFFER,
+        EGL_NONE,
+    };*/
+    EGLint numConfigs = 0;
+    CORE.Window.device = eglGetDisplay(0);
+    //TRACELOG(LOG_INFO, "after eglgetdisplay ");
+
+    if (CORE.Window.device == EGL_NO_DISPLAY)
+    {
+        TRACELOG(LOG_WARNING, "DISPLAY: Failed to initialize EGL device");
+        return false;
+    }
+    EGLint majorVersion;
+    EGLint minorVersion;
+    //TRACELOG(LOG_INFO, "before eglInitialize ");
+
+    // Initialize the EGL device connection
+    if (eglInitialize(CORE.Window.device, &majorVersion, &minorVersion) == EGL_FALSE)
+    {
+        // If all of the calls to eglInitialize returned EGL_FALSE then an error has occurred.
+        TRACELOG(LOG_WARNING, "DISPLAY: Failed to initialize EGL device");
+        return false;
+    }
+    TRACELOG(LOG_INFO,"DISPLAY: EGL version major:%d, minor:%d",majorVersion,minorVersion);   
+    int ret=eglBindAPI(EGL_OPENGL_ES_API);
+    if(!ret)
+    {
+        ret=eglGetError();
+        TRACELOG(LOG_ERROR,"DISPLAY:  eglBindAPI failed: 0x%08X",ret);
+        return false;
+    }
+    TRACELOG(LOG_INFO,"DISPLAY: eglBindAPI success.");
+    
+    /*ret=eglSwapInterval(CORE.Window.device,0);
+    if(!ret)
+    {
+        ret=eglGetError();
+        TRACELOG(LOG_ERROR,"DISPLAY: eglSwapInterval failed: 0x%08X",ret);
+        //return false;
+    }
+    //TRACELOG(LOG_INFO,"DISPLAY: eglSwapInterval success.");*/
+    ret=eglChooseConfig(CORE.Window.device, framebufferAttribs, &CORE.Window.config, 1, &numConfigs);
+    if(!ret)
+    {
+        ret=eglGetError();
+        TRACELOG(LOG_ERROR,"DISPLAY: eglChooseConfig failed: 0x%08X",ret);
+        return false;
+    }
+    if (numConfigs!=1)
+    {
+        TRACELOG(LOG_ERROR,"DISPLAY: No available configuration found.");
+        return false;
+    }
+    TRACELOG(LOG_INFO,"DISPLAY: eglChooseConfig success.");
+    
+
+    CORE.Window.surface=eglCreateWindowSurface(CORE.Window.device, CORE.Window.config, VITA_WINDOW_960X544, NULL);
+    if(CORE.Window.surface==EGL_NO_SURFACE)
+    {
+        ret=eglGetError();
+        TRACELOG(LOG_ERROR,"DISPLAY: eglCreateWindowSurface failed: 0x%08X",ret);
+        return false;
+    }
+    TRACELOG(LOG_INFO,"DISPLAY: eglCreateWindowSurface success.");
+// Create an EGL rendering context
+    CORE.Window.context = eglCreateContext(CORE.Window.device, CORE.Window.config, EGL_NO_CONTEXT, contextAttribs);
+    if (CORE.Window.context == EGL_NO_CONTEXT)
+    {
+        ret=eglGetError();
+        TRACELOG(LOG_ERROR,"DISPLAY: Failed to create EGL context 0x%08X",ret);
+        return false;
+    }
+    TRACELOG(LOG_INFO,"DISPLAY: context create EGL window surface");
+    EGLint surface_width, surface_height;
+    if (eglMakeCurrent(CORE.Window.device, CORE.Window.surface, CORE.Window.surface, CORE.Window.context) == EGL_FALSE)
+    {
+        ret=eglGetError();
+        TRACELOG(LOG_ERROR,"DISPLAY: Failed to attach EGL rendering context to EGL surface 0x%08X");
+        return false;
+    }
+    TRACELOG(LOG_INFO,"DISPLAY: eglMakeCurrent success.\n");
+
+    eglQuerySurface(CORE.Window.device, CORE.Window.surface, EGL_WIDTH, &surface_width);
+    eglQuerySurface(CORE.Window.device, CORE.Window.surface, EGL_HEIGHT, &surface_height);
+    printf("Surface Width: %d, Surface Height: %d\n", surface_width, surface_height);
+
+
+    //const char *gl_exts = (char *) glGetString(GL_EXTENSIONS);
+    //TRACELOG(LOG_INFO,"DISPLAY: GL_VENDOR:   \"%s\"\n", glGetString(GL_VENDOR));
+    //TRACELOG(LOG_INFO,"DISPLAY: GL_VERSION:  \"%s\"\n", glGetString(GL_VERSION));
+    //TRACELOG(LOG_INFO,"DISPLAY: GL_RENDERER: \"%s\"\n", glGetString(GL_RENDERER));
+    //TRACELOG(LOG_INFO,"DISPLAY: SL_VERSION:  \"%s\"\n", glGetString(GL_SHADING_LANGUAGE_VERSION));
+    //TRACELOG(LOG_INFO,"DISPLAY: GL_EXTs:     \"%s\"\n",glGetString(GL_SHADING_LANGUAGE_VERSION));
+    
+    rlglInit(CORE.Window.screen.width, CORE.Window.screen.height);
+
+    int fbWidth = CORE.Window.render.width;
+    int fbHeight = CORE.Window.render.height;
+
+
+
+    // Setup default viewport
+    SetupViewport(fbWidth, fbHeight);
+
+    CORE.Window.currentFbo.width = CORE.Window.screen.width;
+    CORE.Window.currentFbo.height = CORE.Window.screen.height;
+
+    ClearBackground(RAYWHITE);      // Default background color for raylib games :P
+
+    //CORE.Window.ready=true;
+    return true;
+}
+#else
 static bool InitGraphicsDevice(int width, int height)
 {
     CORE.Window.screen.width = width;            // User desired width
@@ -4450,7 +4667,7 @@ static bool InitGraphicsDevice(int width, int height)
 
     return true;
 }
-
+#endif
 // Set viewport for a provided width and height
 static void SetupViewport(int width, int height)
 {
@@ -4577,7 +4794,9 @@ static void InitTimer(void)
     }
     else TRACELOG(LOG_WARNING, "TIMER: Hi-resolution timer not available");
 #endif
-
+#if defined(PLATFORM_VITA)
+    CORE.Time.base=sceKernelGetProcessTimeWide();
+#endif
     CORE.Time.previous = GetTime();     // Get time as double
 }
 
@@ -4635,7 +4854,7 @@ void SwapScreenBuffer(void)
     glfwSwapBuffers(CORE.Window.handle);
 #endif
 
-#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM)
+#if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM) || defined(PLATFORM_VITA)
     eglSwapBuffers(CORE.Window.device, CORE.Window.surface);
 
 #if defined(PLATFORM_DRM)

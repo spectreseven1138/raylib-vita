@@ -31,30 +31,30 @@
 // Camera module is included (rcamera.h) and multiple predefined cameras are available: free, 1st/3rd person, orbital
 #define SUPPORT_CAMERA_SYSTEM       1
 // Gestures module is included (rgestures.h) to support gestures detection: tap, hold, swipe, drag
-#define SUPPORT_GESTURES_SYSTEM     1
+#define SUPPORT_GESTURES_SYSTEM     0
 // Mouse gestures are directly mapped like touches and processed by gestures system
-#define SUPPORT_MOUSE_GESTURES      1
+#define SUPPORT_MOUSE_GESTURES      0
 // Reconfigure standard input to receive key inputs, works with SSH connection.
-#define SUPPORT_SSH_KEYBOARD_RPI    1
+#define SUPPORT_SSH_KEYBOARD_RPI    0
 // Draw a mouse pointer on screen
 //#define SUPPORT_MOUSE_CURSOR_POINT   1
 // Setting a higher resolution can improve the accuracy of time-out intervals in wait functions.
 // However, it can also reduce overall system performance, because the thread scheduler switches tasks more often.
-#define SUPPORT_WINMM_HIGHRES_TIMER 1
+#define SUPPORT_WINMM_HIGHRES_TIMER 0
 // Use busy wait loop for timing sync, if not defined, a high-resolution timer is setup and used
-//#define SUPPORT_BUSY_WAIT_LOOP      1
+#define SUPPORT_BUSY_WAIT_LOOP      1
 // Use a partial-busy wait loop, in this case frame sleeps for most of the time, but then runs a busy loop at the end for accuracy
 #define SUPPORT_PARTIALBUSY_WAIT_LOOP
 // Wait for events passively (sleeping while no events) instead of polling them actively every frame
 //#define SUPPORT_EVENTS_WAITING      1
 // Allow automatic screen capture of current screen pressing F12, defined in KeyCallback()
-#define SUPPORT_SCREEN_CAPTURE      1
+#define SUPPORT_SCREEN_CAPTURE      0
 // Allow automatic gif recording of current screen pressing CTRL+F12, defined in KeyCallback()
-#define SUPPORT_GIF_RECORDING       1
+#define SUPPORT_GIF_RECORDING       0
 // Support CompressData() and DecompressData() functions
-#define SUPPORT_COMPRESSION_API     1
+#define SUPPORT_COMPRESSION_API     0
 // Support saving binary data automatically to a generated storage.data file. This file is managed internally.
-#define SUPPORT_DATA_STORAGE        1
+#define SUPPORT_DATA_STORAGE        0
 // Support automatic generated events, loading and recording of those events when required
 //#define SUPPORT_EVENTS_AUTOMATION     1
 // Support custom frame control, only for advance users
@@ -89,7 +89,7 @@
 //#define RLGL_ENABLE_OPENGL_DEBUG_CONTEXT       1
 
 // Show OpenGL extensions and capabilities detailed logs on init
-//#define RLGL_SHOW_GL_DETAILS_INFO              1
+#define RLGL_SHOW_GL_DETAILS_INFO              1
 
 //#define RL_DEFAULT_BATCH_BUFFER_ELEMENTS    4096    // Default internal render batch elements limits
 #define RL_DEFAULT_BATCH_BUFFERS               1      // Default number of batch buffers (multi-buffering)
@@ -126,6 +126,7 @@
 //------------------------------------------------------------------------------------
 // Module: shapes - Configuration Flags
 //------------------------------------------------------------------------------------
+#define SUPPORT_FONT_TEXTURE        1
 // Use QUADS instead of TRIANGLES for drawing when possible
 // Some lines-based shapes could still use lines
 #define SUPPORT_QUADS_DRAW_MODE     1

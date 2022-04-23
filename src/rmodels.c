@@ -1095,7 +1095,7 @@ void UploadMesh(Mesh *mesh, bool dynamic)
     mesh->vboId[1] = rlLoadVertexBuffer(mesh->texcoords, mesh->vertexCount*2*sizeof(float), dynamic);
     rlSetVertexAttribute(1, 2, RL_FLOAT, 0, 0, 0);
     rlEnableVertexAttribute(1);
-
+#if !defined(PLATFORM_VITA)
     if (mesh->normals != NULL)
     {
         // Enable vertex attributes: normals (shader-location = 2)
@@ -1111,7 +1111,7 @@ void UploadMesh(Mesh *mesh, bool dynamic)
         rlSetVertexAttributeDefault(2, value, SHADER_ATTRIB_VEC3, 3);
         rlDisableVertexAttribute(2);
     }
-
+#endif
     if (mesh->colors != NULL)
     {
         // Enable vertex attribute: color (shader-location = 3)
@@ -3741,11 +3741,12 @@ static Model LoadOBJ(const char *fileName)
         char currentDir[1024] = { 0 };
         strcpy(currentDir, GetWorkingDirectory());
         const char *workingDir = GetDirectoryPath(fileName);
+#if !defined(PLATFORM_VITA)
         if (CHDIR(workingDir) != 0)
         {
             TRACELOG(LOG_WARNING, "MODEL: [%s] Failed to change working directory", workingDir);
         }
-
+#endif
         unsigned int flags = TINYOBJ_FLAG_TRIANGULATE;
         int ret = tinyobj_parse_obj(&attrib, &meshes, &meshCount, &materials, &materialCount, fileText, dataSize, flags);
 
@@ -3888,11 +3889,12 @@ static Model LoadOBJ(const char *fileName)
         RL_FREE(vtCount);
         RL_FREE(vnCount);
         RL_FREE(faceCount);
-
+#if !defined(PLATFORM_VITA)
         if (CHDIR(currentDir) != 0)
         {
             TRACELOG(LOG_WARNING, "MODEL: [%s] Failed to change working directory", currentDir);
         }
+#endif
     }
 
     return model;

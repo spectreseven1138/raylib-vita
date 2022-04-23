@@ -4265,6 +4265,33 @@ static void rlLoadShaderDefault(void)
     for (int i = 0; i < RL_MAX_SHADER_LOCATIONS; i++) RLGL.State.defaultShaderLocs[i] = -1;
 
     // Vertex shader directly defined, no external file required
+#if defined (PLATFORM_VITA)
+const char *defaultVShaderCode =
+    "void main(                         \n"
+    "float3 vertexPosition,             \n"
+    "float2 vertexTexCoord,             \n"
+    "float4 vertexColor,                \n"
+    "float2 out fragTexCoord : TEXCOORD0,\n"
+    "float4 out fragColor : COLOR0,      \n"
+    "float4 out gl_Position : POSITION, \n"
+    "uniform float4x4 mvp)              \n"
+    "{                                  \n"
+    "    fragTexCoord = vertexTexCoord; \n"
+    "    fragColor = vertexColor;       \n"
+    "    gl_Position = mul(float4(vertexPosition,1.f),mvp); \n"
+    "}                                  \n";
+    const char *defaultFShaderCode =
+    "void main(                       \n"
+    "float2 fragTexCoord : TEXCOORD0,   \n"
+    "float4 fragColor : COLOR0,                  \n"
+    "uniform sampler2D texture0,        \n"
+    "uniform float4 colDiffuse,        \n"
+    "float4 out finalColor)         \n"
+    "{                                  \n"
+    "    float4 texelColor = tex2D(texture0, fragTexCoord); \n" 
+    "    finalColor=texelColor*colDiffuse*fragColor;      \n"
+    "}                                  \n";
+#else
     const char *defaultVShaderCode =
 #if defined(GRAPHICS_API_OPENGL_21)
     "#version 120                       \n"
@@ -4336,7 +4363,7 @@ static void rlLoadShaderDefault(void)
     "    gl_FragColor = texelColor*colDiffuse*fragColor;      \n"
     "}                                  \n";
 #endif
-
+#endif
     // NOTE: Compiled vertex/fragment shaders are kept for re-use
     RLGL.State.defaultVShaderId = rlCompileShader(defaultVShaderCode, GL_VERTEX_SHADER);     // Compile default vertex shader
     RLGL.State.defaultFShaderId = rlCompileShader(defaultFShaderCode, GL_FRAGMENT_SHADER);   // Compile default fragment shader

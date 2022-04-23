@@ -104,6 +104,166 @@ static int android_close(void *cookie);
 void SetTraceLogLevel(int logType) { logTypeLevel = logType; }
 
 // Show trace log messages (LOG_INFO, LOG_WARNING, LOG_ERROR, LOG_DEBUG)
+#if defined(PLATFORM_VITA)
+#include <psp2/net/net.h>
+#include <psp2/net/netctl.h>
+#include <psp2/types.h>
+#include <psp2/kernel/clib.h>
+#include <psp2/sysmodule.h>
+static void *net_memory = NULL;
+static SceNetInAddr vita_addr;
+struct SceNetSockaddrIn stSockAddr;
+int debugnet_initialized;
+int SocketFD;
+#define NET_INIT_SIZE 1*1024*1024
+
+/**
+ * UDP printf for debugnet library,
+ * use debugNetPrintf() instead unless necessary
+ *
+ * @par Example:
+ * @code
+ * debugNetUDPPrintf("This is a %s test\n", "real");
+ * @endcode
+ */
+void debugNetUDPPrintf(const char* fmt, ...)
+{
+  char buffer[1024];
+  va_list arg;
+  va_start(arg, fmt);
+  sceClibVsnprintf(buffer, sizeof(buffer), fmt, arg);
+  va_end(arg);
+  
+  debugNetUDPSend(buffer);
+}
+/**
+ * UDP Raw text send for debugnet library,
+ * use debugNetPrintf() instead unless necessary
+ *
+ * @par Example:
+ * @code
+ * debugNetUDPSend("This is a test\n");
+ * @endcode
+ *
+ * @param text - NULL-terminated buffer containing the raw text to send
+ */
+void debugNetUDPSend(const char *text)
+{
+    sceNetSend(SocketFD, text, strlen(text), 0);
+}
+/**
+ * Init debugnet library 
+ *
+ * @par Example:
+ * @code
+ * #define LOGLEVEL 3  
+ * int ret;
+ * ret = debugNetInit("172.26.0.2", 18194, DEBUG);
+ * @endcode
+ *
+ * @param serverIP - your pc/mac server ip
+ * @param port - udp port server
+ * @param level - DEBUG,ERROR,INFO or NONE 
+ */
+int debugNetInit(const char *serverIp, int port, int level)
+{
+    int ret=0;
+    SceNetInitParam initparam;
+    SceNetCtlInfo info;
+    
+    
+    
+    //debugNetSetLogLevel(level);
+    
+    
+    if (sceSysmoduleIsLoaded(SCE_SYSMODULE_NET) != SCE_SYSMODULE_LOADED)
+    ret=sceSysmoduleLoadModule(SCE_SYSMODULE_NET);
+    
+    if (ret >=0) 
+    {
+        
+    
+    /*net initialazation code from xerpi at https://github.com/xerpi/FTPVita/blob/master/ftp.c*/
+    /* Init Net */
+    if (sceNetShowNetstat() == SCE_NET_ERROR_ENOTINIT) {
+        net_memory = malloc(NET_INIT_SIZE);
+
+        initparam.memory = net_memory;
+        initparam.size = NET_INIT_SIZE;
+        initparam.flags = 0;
+
+        ret = sceNetInit(&initparam);
+        //printf("sceNetInit(): 0x%08X\n", ret);
+    } else {
+        //printf("Net is already initialized.\n");
+    }
+
+    /* Init NetCtl */
+    ret = sceNetCtlInit();
+    //printf("sceNetCtlInit(): 0x%08X\n", ret);
+   
+
+    /* Get IP address */
+    ret = sceNetCtlInetGetInfo(SCE_NETCTL_INFO_GET_IP_CONFIG, &info);
+    //printf("sceNetCtlInetGetInfo(): 0x%08X\n", ret);
+
+
+    /* Save the IP of PSVita to a global variable */
+    sceNetInetPton(SCE_NET_AF_INET, info.ip_address, &vita_addr);
+    
+    /* Create datagram udp socket*/
+    SocketFD = sceNetSocket("debugnet_socket",
+        SCE_NET_AF_INET , SCE_NET_SOCK_DGRAM, SCE_NET_IPPROTO_UDP);
+   
+    memset(&stSockAddr, 0, sizeof stSockAddr);
+    
+    
+    /*Populate SceNetSockaddrIn structure values*/
+    stSockAddr.sin_family = SCE_NET_AF_INET;
+    stSockAddr.sin_port = sceNetHtons(port);
+    sceNetInetPton(SCE_NET_AF_INET, serverIp, &stSockAddr.sin_addr);
+
+    /*Connect socket to server*/
+    sceNetConnect(SocketFD, (struct SceNetSockaddr *)&stSockAddr, sizeof stSockAddr);
+
+    /*Show log on pc/mac side*/
+    debugNetUDPPrintf("[VITA][INFO]:debugnet initialized\n");
+    debugNetUDPPrintf("[VITA][INFO]:Copyright (C) 2010,2020 Antonio Jose Ramos Marquez aka bigboss @psxdev\n");
+    debugNetUDPPrintf("[VITA][INFO]:ready to have a lot of fun...\n");
+
+    /*library debugnet initialized*/
+    debugnet_initialized = 1;
+    }
+
+    return debugnet_initialized;
+}
+ // Show trace log messages (LOG_INFO, LOG_WARNING, LOG_ERROR, LOG_DEBUG)
+void TraceLog(int logType, const char *text, ...)
+{
+    // Message has level below current threshold, don't emit
+    if (logType < logTypeLevel) return;
+
+    char buffer[1024] = { 0 };
+    va_list args;
+    
+    va_start(args, text);
+       
+    sceClibVsnprintf(buffer,1024, text, args);
+    buffer[1024-1] = 0;
+    va_end(args);
+
+    switch (logType)
+    {
+        case LOG_TRACE: debugNetUDPPrintf("[VITA][TRACE]: %s\n",buffer); break;
+        case LOG_DEBUG: debugNetUDPPrintf("[VITA][DEBUG]: %s\n",buffer); break;
+        case LOG_INFO: debugNetUDPPrintf("[VITA][INFO]: %s\n",buffer); break;
+        case LOG_WARNING: debugNetUDPPrintf("[VITA][WARNING]: %s\n",buffer); break;
+        case LOG_ERROR: debugNetUDPPrintf("[VITA][ERROR]: %s\n",buffer); break;
+        case LOG_FATAL: debugNetUDPPrintf("[VITA][FATAL]: %s\n",buffer); break;
+        default: break;
+    }
+}
+#else
 void TraceLog(int logType, const char *text, ...)
 {
 #if defined(SUPPORT_TRACELOG)
@@ -156,7 +316,7 @@ void TraceLog(int logType, const char *text, ...)
 
 #endif  // SUPPORT_TRACELOG
 }
-
+#endif
 // Internal memory allocator
 // NOTE: Initializes to zero by default
 void *MemAlloc(int size)
