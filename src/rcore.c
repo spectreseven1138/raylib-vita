@@ -271,9 +271,32 @@
     #include <psp2/gxm.h>
     #include <psp2/display.h>
     #include <psp2/kernel/processmgr.h>
+    #include <psp2/ctrl.h>
+    #include <psp2/touch.h>
     #include "EGL/egl.h"
     #include "EGL/eglext.h"
     #include "GLES2/gl2.h"
+
+    static const SceCtrlButtons vita_buttons[MAX_GAMEPAD_BUTTONS] =  {
+        SCE_CTRL_SELECT,
+        SCE_CTRL_L3,
+        SCE_CTRL_R3,
+        SCE_CTRL_START,
+        SCE_CTRL_UP,
+        SCE_CTRL_RIGHT,
+        SCE_CTRL_DOWN,
+        SCE_CTRL_LEFT,
+        SCE_CTRL_LTRIGGER,
+        SCE_CTRL_L2,
+        SCE_CTRL_RTRIGGER,
+        SCE_CTRL_R2,
+        // SCE_CTRL_L1,
+        // SCE_CTRL_R1,
+        SCE_CTRL_TRIANGLE,
+        SCE_CTRL_CIRCLE,
+        SCE_CTRL_CROSS,
+        SCE_CTRL_SQUARE
+    };
 #endif
 //----------------------------------------------------------------------------------
 // Defines and Macros
@@ -722,7 +745,7 @@ void InitWindow(int width, int height, const char *title)
     CORE.Input.Mouse.currentPosition.x = (float)CORE.Window.screen.width/2.0f;
     CORE.Input.Mouse.currentPosition.y = (float)CORE.Window.screen.height/2.0f;
     CORE.Input.Mouse.scale = (Vector2){ 1.0f, 1.0f };
-    
+    CORE.Input.Gamepad.ready[0] = true;
 
     if (!CORE.Window.ready) return;
 
@@ -3598,7 +3621,7 @@ Vector2 GetMousePosition(void)
 {
     Vector2 position = { 0 };
 
-#if defined(PLATFORM_ANDROID) || defined(PLATFORM_WEB)
+#if defined(PLATFORM_ANDROID) || defined(PLATFORM_WEB) || defined(PLATFORM_VITA)
     position = GetTouchPosition(0);
 #else
     position.x = (CORE.Input.Mouse.currentPosition.x + CORE.Input.Mouse.offset.x)*CORE.Input.Mouse.scale.x;
@@ -3718,7 +3741,7 @@ Vector2 GetTouchPosition(int index)
         position.y = position.y*((float)CORE.Window.render.height/(float)CORE.Window.display.height) - CORE.Window.renderOffset.y/2;
     }
 #endif
-#if defined(PLATFORM_WEB) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM)
+#if defined(PLATFORM_WEB) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM) || defined(PLATFORM_VITA)
     if (index < MAX_TOUCH_POINTS) position = CORE.Input.Touch.position[index];
     else TRACELOG(LOG_WARNING, "INPUT: Required touch point out of range (Max touch points: %i)", MAX_TOUCH_POINTS);
 #endif
@@ -5175,6 +5198,66 @@ void PollInputEvents(void)
     // NOTE: Mouse input events polling is done asynchronously in another pthread - EventThread()
     // NOTE: Gamepad (Joystick) input events polling is done asynchonously in another pthread - GamepadThread()
 #endif
+
+#if defined(PLATFORM_VITA)
+
+    // Poll Vita gamepad buttons
+    for (int port = 0; port < MAX_GAMEPADS; port++)
+    {
+        SceCtrlData button_data;
+        sceCtrlPeekBufferPositiveExt2(port, &button_data, 1);
+    
+        for (int i = 0; i < MAX_GAMEPAD_BUTTONS; i++)
+        {
+            SceCtrlButtons vita_button = vita_buttons[i];
+            GamepadButton button;
+
+            switch (vita_button)
+            {
+                case SCE_CTRL_SELECT: button = GAMEPAD_BUTTON_MIDDLE_LEFT; break;
+                case SCE_CTRL_L3: button = GAMEPAD_BUTTON_LEFT_THUMB; break;
+                case SCE_CTRL_R3: button = GAMEPAD_BUTTON_RIGHT_THUMB; break;
+                case SCE_CTRL_START: button = GAMEPAD_BUTTON_MIDDLE_RIGHT; break;
+                case SCE_CTRL_UP: button = GAMEPAD_BUTTON_LEFT_FACE_UP; break;
+                case SCE_CTRL_RIGHT: button = GAMEPAD_BUTTON_LEFT_FACE_RIGHT; break;
+                case SCE_CTRL_DOWN: button = GAMEPAD_BUTTON_LEFT_FACE_DOWN; break;
+                case SCE_CTRL_LEFT: button = GAMEPAD_BUTTON_LEFT_FACE_LEFT; break;
+                case SCE_CTRL_L1: button = GAMEPAD_BUTTON_LEFT_TRIGGER_1; break;
+                case SCE_CTRL_L2: button = GAMEPAD_BUTTON_LEFT_TRIGGER_2; break;
+                case SCE_CTRL_R1: button = GAMEPAD_BUTTON_RIGHT_TRIGGER_1; break;
+                case SCE_CTRL_R2: button = GAMEPAD_BUTTON_RIGHT_TRIGGER_2; break;
+                case SCE_CTRL_TRIANGLE: button = GAMEPAD_BUTTON_RIGHT_FACE_UP; break;
+                case SCE_CTRL_CIRCLE: button = GAMEPAD_BUTTON_RIGHT_FACE_RIGHT; break;
+                case SCE_CTRL_CROSS: button = GAMEPAD_BUTTON_RIGHT_FACE_DOWN; break;
+                case SCE_CTRL_SQUARE: button = GAMEPAD_BUTTON_RIGHT_FACE_LEFT; break;
+                default: break;
+            }
+
+            if ((button_data.buttons & vita_button) == vita_button)
+            {
+                CORE.Input.Gamepad.currentButtonState[port][button] = 1;
+                CORE.Input.Gamepad.lastButtonPressed = button;
+            }
+            else CORE.Input.Gamepad.currentButtonState[port][button] = 0;
+        }
+    }
+
+    // Poll Vita touch points
+    // Index 0 ~ 5: Front touch
+    // Index 6 ~ 9: Rear touch
+    SceTouchData touch_data;
+
+    for (SceTouchPortType port = 0; port < SCE_TOUCH_PORT_MAX_NUM; port++) {
+        sceTouchPeek(port, &touch_data, 1);
+
+        for (int point = 0; point < touch_data.reportNum; point++) {
+            CORE.Input.Touch.position[point + 6 * port].x = touch_data.report[point].x;
+            CORE.Input.Touch.position[point + 6 * port].y = touch_data.report[point].y;
+        }
+    }
+
+#endif
+
 }
 
 #if defined(PLATFORM_DESKTOP) || defined(PLATFORM_WEB)

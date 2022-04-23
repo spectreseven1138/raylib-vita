@@ -27,6 +27,10 @@
 #ifndef UTILS_H
 #define UTILS_H
 
+#ifdef __cplusplus
+extern "C" {            // Prevents name mangling of functions
+#endif
+
 #if defined(PLATFORM_ANDROID)
     #include <stdio.h>                      // Required for: FILE
     #include <android/asset_manager.h>      // Required for: AAssetManager
@@ -70,9 +74,6 @@ void debugNetUDPPrintf(const char *format, ...);
 //----------------------------------------------------------------------------------
 // Module Functions Declaration
 //----------------------------------------------------------------------------------
-#ifdef __cplusplus
-extern "C" {            // Prevents name mangling of functions
-#endif
 
 #if defined(PLATFORM_ANDROID)
 void InitAssetManager(AAssetManager *manager, const char *dataPath);   // Initialize asset manager from android app

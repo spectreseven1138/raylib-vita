@@ -128,7 +128,7 @@ int SocketFD;
  */
 void debugNetUDPPrintf(const char* fmt, ...)
 {
-  char buffer[1024];
+  char buffer[1024*4];
   va_list arg;
   va_start(arg, fmt);
   sceClibVsnprintf(buffer, sizeof(buffer), fmt, arg);
@@ -240,6 +240,10 @@ int debugNetInit(const char *serverIp, int port, int level)
  // Show trace log messages (LOG_INFO, LOG_WARNING, LOG_ERROR, LOG_DEBUG)
 void TraceLog(int logType, const char *text, ...)
 {
+    if (!debugnet_initialized) {
+        return;
+    }
+
     // Message has level below current threshold, don't emit
     if (logType < logTypeLevel) return;
 

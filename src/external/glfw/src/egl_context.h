@@ -31,6 +31,10 @@
  #define EGLAPIENTRY
 #endif
 
+#ifdef __cplusplus
+extern "C" {            // Prevents name mangling of functions
+#endif
+
 #define EGL_SUCCESS 0x3000
 #define EGL_NOT_INITIALIZED 0x3001
 #define EGL_BAD_ACCESS 0x3002
@@ -227,3 +231,6 @@ GLFWbool _glfwChooseVisualEGL(const _GLFWwndconfig* wndconfig,
                               Visual** visual, int* depth);
 #endif /*_GLFW_X11*/
 
+#ifdef __cplusplus
+}
+#endif
