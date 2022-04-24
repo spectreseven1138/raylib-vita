@@ -873,12 +873,12 @@ void DrawRay(Ray ray, Color color)
 }
 
 // Draw a grid centered at (0, 0, 0)
-void DrawGrid(int slices, float spacing)
+void DrawGrid(int slices, float spacing, Vector3 position, Color color)
 {
     int halfSlices = slices/2;
 
     rlCheckRenderBatchLimit((slices + 2)*4);
-
+    
     rlBegin(RL_LINES);
         for (int i = -halfSlices; i <= halfSlices; i++)
         {
@@ -891,17 +891,17 @@ void DrawGrid(int slices, float spacing)
             }
             else
             {
-                rlColor3f(0.75f, 0.75f, 0.75f);
-                rlColor3f(0.75f, 0.75f, 0.75f);
-                rlColor3f(0.75f, 0.75f, 0.75f);
-                rlColor3f(0.75f, 0.75f, 0.75f);
+                rlColor4ub(color.r, color.g, color.b, color.a);
+                rlColor4ub(color.r, color.g, color.b, color.a);
+                rlColor4ub(color.r, color.g, color.b, color.a);
+                rlColor4ub(color.r, color.g, color.b, color.a);
             }
 
-            rlVertex3f((float)i*spacing, 0.0f, (float)-halfSlices*spacing);
-            rlVertex3f((float)i*spacing, 0.0f, (float)halfSlices*spacing);
+            rlVertex3f((float)i*spacing + position.x, position.y, (float)-halfSlices*spacing + position.z);
+            rlVertex3f((float)i*spacing + position.x, position.y, (float)halfSlices*spacing + position.z);
 
-            rlVertex3f((float)-halfSlices*spacing, 0.0f, (float)i*spacing);
-            rlVertex3f((float)halfSlices*spacing, 0.0f, (float)i*spacing);
+            rlVertex3f((float)-halfSlices*spacing + position.x, position.y, (float)i*spacing + position.z);
+            rlVertex3f((float)halfSlices*spacing + position.x, position.y, (float)i*spacing + position.z);
         }
     rlEnd();
 }
@@ -3738,10 +3738,10 @@ static Model LoadOBJ(const char *fileName)
     if (fileText != NULL)
     {
         unsigned int dataSize = (unsigned int)strlen(fileText);
+#if !defined(PLATFORM_VITA)
         char currentDir[1024] = { 0 };
         strcpy(currentDir, GetWorkingDirectory());
         const char *workingDir = GetDirectoryPath(fileName);
-#if !defined(PLATFORM_VITA)
         if (CHDIR(workingDir) != 0)
         {
             TRACELOG(LOG_WARNING, "MODEL: [%s] Failed to change working directory", workingDir);

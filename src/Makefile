@@ -283,7 +283,7 @@ endif
 #  -D_DEFAULT_SOURCE        use with -std=c99 on Linux and PLATFORM_WEB, required for timespec
 #  -Werror=pointer-arith    catch unportable code that does direct arithmetic on void pointers
 #  -fno-strict-aliasing     jar_xm.h does shady stuff (breaks strict aliasing)
-CFLAGS += -Wall -D_DEFAULT_SOURCE -Wno-missing-braces -Werror=pointer-arith -fno-strict-aliasing -g
+CFLAGS += -Wall -D_DEFAULT_SOURCE -Wno-missing-braces -Wno-unused-function -Werror=pointer-arith -fno-strict-aliasing -g
 
 ifeq ($(PLATFORM), PLATFORM_WEB)
     CFLAGS += -std=gnu99
@@ -386,7 +386,7 @@ endif
 # NOTE: Several external required libraries (stb and others)
 INCLUDE_PATHS = -I. -Iexternal/glfw/include -Iexternal/glfw/deps/mingw
 ifeq ($(PLATFORM),PLATFORM_VITA)
-    CFLAGS = -Wl,-q -Wall -Wno-incompatible-pointer-types -Wno-pointer-sign -O3 -nostartfiles -DVITA -g
+    CFLAGS = -Wl,-q -Wall -Wno-incompatible-pointer-types -Wno-pointer-sign -Wno-unused-function -O3 -nostartfiles -DVITA -g
     INCLUDE_PATHS = -I.
 endif
 ifeq ($(PLATFORM),PLATFORM_DESKTOP)

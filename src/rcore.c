@@ -528,7 +528,7 @@ static CoreData CORE = { 0 };               // Global CORE state context
 static char **dirFilesPath = NULL;          // Store directory files paths as strings
 static int dirFileCount = 0;                // Count directory files strings
 
-#if defined(SUPPORT_SCREEN_CAPTURE)
+#if defined(SUPPORT_SCREEN_CAPTURE) && !defined(PLATFORM_VITA)
 static int screenshotCounter = 0;           // Screenshots counter
 #endif
 
@@ -3809,6 +3809,7 @@ static bool InitGraphicsDevice(int width, int height)
     
     CORE.Window.fullscreen = true;
 
+    #if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM)
     EGLint samples = 0;
     EGLint sampleBuffer = 0;
     //TRACELOG(LOG_INFO, "after setugframebuffer");
@@ -3819,6 +3820,7 @@ static bool InitGraphicsDevice(int width, int height)
         sampleBuffer = 1;
         TRACELOG(LOG_INFO, "DISPLAY: Trying to enable MSAA x4");
     }
+    #endif
 
     const EGLint framebufferAttribs[] = {
         //EGL_CONFIG_ID, 2,                         // You can always provide a configuration id. The one displayed here is Configuration 2
@@ -4438,6 +4440,7 @@ static bool InitGraphicsDevice(int width, int height)
     }
 #endif
 
+    #if defined(PLATFORM_ANDROID) || defined(PLATFORM_RPI) || defined(PLATFORM_DRM)
     EGLint samples = 0;
     EGLint sampleBuffer = 0;
     if (CORE.Window.flags & FLAG_MSAA_4X_HINT)
@@ -4446,6 +4449,7 @@ static bool InitGraphicsDevice(int width, int height)
         sampleBuffer = 1;
         TRACELOG(LOG_INFO, "DISPLAY: Trying to enable MSAA x4");
     }
+    #endif
 
     const EGLint framebufferAttribs[] =
     {
