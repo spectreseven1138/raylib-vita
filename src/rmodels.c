@@ -873,7 +873,7 @@ void DrawRay(Ray ray, Color color)
 }
 
 // Draw a grid centered at (0, 0, 0)
-void DrawGrid(int slices, float spacing, Vector3 position, Color color)
+void DrawGrid(int slices, float spacing)
 {
     int halfSlices = slices/2;
 
@@ -891,17 +891,17 @@ void DrawGrid(int slices, float spacing, Vector3 position, Color color)
             }
             else
             {
-                rlColor4ub(color.r, color.g, color.b, color.a);
-                rlColor4ub(color.r, color.g, color.b, color.a);
-                rlColor4ub(color.r, color.g, color.b, color.a);
-                rlColor4ub(color.r, color.g, color.b, color.a);
+                rlColor3f(0.75f, 0.75f, 0.75f);
+                rlColor3f(0.75f, 0.75f, 0.75f);
+                rlColor3f(0.75f, 0.75f, 0.75f);
+                rlColor3f(0.75f, 0.75f, 0.75f);
             }
 
-            rlVertex3f((float)i*spacing + position.x, position.y, (float)-halfSlices*spacing + position.z);
-            rlVertex3f((float)i*spacing + position.x, position.y, (float)halfSlices*spacing + position.z);
+            rlVertex3f((float)i*spacing, 0.0f, (float)-halfSlices*spacing);
+            rlVertex3f((float)i*spacing, 0.0f, (float)halfSlices*spacing);
 
-            rlVertex3f((float)-halfSlices*spacing + position.x, position.y, (float)i*spacing + position.z);
-            rlVertex3f((float)halfSlices*spacing + position.x, position.y, (float)i*spacing + position.z);
+            rlVertex3f((float)-halfSlices*spacing, 0.0f, (float)i*spacing);
+            rlVertex3f((float)halfSlices*spacing, 0.0f, (float)i*spacing);
         }
     rlEnd();
 }
